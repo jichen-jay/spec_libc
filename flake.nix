@@ -1,19 +1,60 @@
 {
-  description = "Docker image with dynamically linked uv binary using a prebuilt base image";
+  description = "Docker image with dynamically linked uv binary using Nix and Debian glibc";
 
   inputs = {
-    # Use Nixpkgs 22.11 with glibc 2.36
-    nixpkgs.url = "github:NixOS/nixpkgs/release-22.11";
-    rust-overlay.url = "github:oxalica/rust-overlay";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, ... }:
+  outputs = { self, nixpkgs }:
     let
       system = "x86_64-linux";
-      overlays = [ rust-overlay.overlays.default ]; # Adjusted for Nixpkgs 22.11
-      pkgs = import nixpkgs { inherit system overlays; };
+
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [
+          (final: prev: {
+            debianPkgs = prev.pkgs.buildFHSUserEnv {
+              name = "debian-env";
+              targetPkgs = pkgs: (with pkgs; [
+                gcc
+                glibc
+                glibc.dev
+                glibc.static
+                openssl
+                openssl.dev
+                zlib
+                zlib.dev
+                libgit2
+                libgit2.dev
+                pkg-config
+                make
+                python3
+                gnumake
+                bash
+                coreutils
+                binutils
+                findutils
+                curl
+                wget
+                xz
+                which
+              ]);
+              multiPkgs = null;
+              profile = ''
+                export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+              '';
+              runScript = ""
+                exec bash
+              "";
+            };
+          })
+        ];
+      };
+
+      debianEnv = pkgs.debianPkgs;
 
       uvVersion = "0.5.5";
+
       src = pkgs.fetchFromGitHub {
         owner = "astral-sh";
         repo = "uv";
@@ -21,48 +62,34 @@
         sha256 = "sha256-E0U6K+lvtIM9htpMpFN36JHA772LgTHaTCVGiTTlvQk=";
       };
 
-      uvBinary = pkgs.rustPlatform.buildRustPackage rec {
+      uvBuilder = pkgs.stdenv.mkDerivation {
         pname = "uv";
         version = uvVersion;
         inherit src;
 
-        fetchCargoVendor = true;
-        useFetchCargoVendor = true;
-        cargoHash = "sha256-WbA0/HojU/E2ccAvV2sv9EAXLqcb+99LFHxddcYFZFw=";
-
-        nativeBuildInputs = with pkgs; [
-          pkg-config
-          openssl
-          zlib
-          libgit2
-          patchelf # Needed for patchelf in postInstall
+        nativeBuildInputs = [
+          debianEnv
         ];
 
-        buildInputs = with pkgs; [
-          openssl
-          zlib
-          libgit2
-        ];
+        # We need to make the FHS environment visible in the build
+        buildCommand = ''
+          # Start the FHS environment
+          ${debianEnv}/bin/debian-env -c "
+            set -e
+            export OPENSSL_NO_VENDOR=1
+            export ZLIB_NO_VENDOR=1
+            export LIBGIT2_SYS_USE_PKG_CONFIG=1
 
-        doCheck = false;
+            # Change to the source directory
+            cd $PWD
 
-        buildPhase = ''
-          export OPENSSL_NO_VENDOR=1
-          export OPENSSL_DIR=${pkgs.openssl.dev}
-          export ZLIB_NO_VENDOR=1
-          export ZLIB_DIR=${pkgs.zlib.dev}
-          export LIBGIT2_SYS_USE_PKG_CONFIG=1
-          cargo build --release --frozen
-        '';
+            # Build the uv binary
+            cargo build --release
 
-        installPhase = ''
-          mkdir -p $out/usr/local/bin
-          cp target/release/uv $out/usr/local/bin/
-        '';
-
-        postInstall = ''
-          patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 \
-            --set-rpath /lib/x86_64-linux-gnu $out/usr/local/bin/uv
+            # Install the uv binary
+            mkdir -p $out/usr/local/bin
+            cp target/release/uv $out/usr/local/bin/
+          "
         '';
       };
 
@@ -73,11 +100,10 @@
         fromImage = "debian:bookworm-slim";
 
         config = {
-          Cmd = [ "/usr/local/bin/uv" ];
+          Entrypoint = [ "/usr/local/bin/uv" ];
+          Cmd = [ ];
           WorkingDir = "/";
-          Entrypoint = null;
         };
-
 
         runAsRoot = ''
           apt-get update
@@ -87,7 +113,7 @@
 
         copyToRoot = pkgs.buildEnv {
           name = "image-root";
-          paths = [ uvBinary ];
+          paths = [ uvBuilder ];
           pathsToLink = [ "/usr/local/bin" ];
         };
       };
@@ -96,5 +122,7 @@
       packages.${system} = {
         default = uvImage;
       };
+
+      defaultPackage.${system} = uvImage;
     };
 }
