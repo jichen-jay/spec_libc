@@ -15,6 +15,7 @@
           (final: prev: {
             debianPkgs = prev.pkgs.buildFHSUserEnv {
               name = "debian-env";
+
               targetPkgs = pkgs: (with pkgs; [
                 gcc
                 glibc
@@ -26,8 +27,7 @@
                 zlib.dev
                 libgit2
                 libgit2.dev
-pkg-config
-
+                pkg-config
                 python3
                 gnumake
                 bash
@@ -38,12 +38,15 @@ pkg-config
                 wget
                 xz
                 which
+                rustc
+                cargo
               ]);
+
               multiPkgs = null;
               profile = ''
                 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
               '';
-runScript = ''
+              runScript = ''
 
 
                 exec bash
@@ -73,27 +76,29 @@ runScript = ''
 
         nativeBuildInputs = [
           debianEnv
+          pkgs.cargo
+          pkgs.rustc
         ];
 
-        # We need to make the FHS environment visible in the build
         buildCommand = ''
-          # Start the FHS environment
-          ${debianEnv}/bin/debian-env -c "
+          export out="$out"
+          export src="$src"
+
+          mkdir source
+          cd source
+          tar xvf "$src" --strip-components=1
+
+          ${debianEnv}/bin/debian-env -c '
             set -e
             export OPENSSL_NO_VENDOR=1
             export ZLIB_NO_VENDOR=1
             export LIBGIT2_SYS_USE_PKG_CONFIG=1
 
-            # Change to the source directory
-            cd $PWD
-
-            # Build the uv binary
             cargo build --release
 
-            # Install the uv binary
-            mkdir -p $out/usr/local/bin
-            cp target/release/uv $out/usr/local/bin/
-          "
+            mkdir -p "$out"/usr/local/bin
+            cp target/release/uv "$out"/usr/local/bin/
+          '
         '';
       };
 
