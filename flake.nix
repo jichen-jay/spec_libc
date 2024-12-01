@@ -26,8 +26,8 @@
                 zlib.dev
                 libgit2
                 libgit2.dev
-                pkg-config
-                make
+pkg-config
+
                 python3
                 gnumake
                 bash
@@ -43,9 +43,13 @@
               profile = ''
                 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
               '';
-              runScript = ""
+runScript = ''
+
+
                 exec bash
-              "";
+'';
+
+
             };
           })
         ];
