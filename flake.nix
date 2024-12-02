@@ -73,10 +73,16 @@ bash
         buildPhase = ''
           # Start the FHS environment
           ${debianEnv}/bin/debian-env -c '
-            set -e
+set - ex
+
             export OPENSSL_NO_VENDOR=1
             export ZLIB_NO_VENDOR=1
             export LIBGIT2_SYS_USE_PKG_CONFIG=1
+
+cd "${PWD}"
+  # Print the current directory
+  echo "Current directory inside debian-env: $(pwd)"
+  ls - la
 
             # Build the uv binary
             cargo build --release
