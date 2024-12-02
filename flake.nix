@@ -99,7 +99,8 @@
             mkdir -p "$out"/usr/local/bin
             cp target/release/uv "$out"/usr/local/bin/
           '
-        '';
+''; 
+
       };
 
       uvImage = pkgs.dockerTools.buildImage {
