@@ -48,12 +48,11 @@
         ]);
 
         profile = ''
-          export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+          export PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH
         '';
 
         runScript = ''
-bash
-
+          bash
         '';
       };
 
@@ -67,22 +66,25 @@ bash
           debianEnv
         ];
 
-        # Use the default unpackPhase
-        # Nix will automatically unpack $src
-
         buildPhase = ''
           # Start the FHS environment
           ${debianEnv}/bin/debian-env -c '
-set - ex
-
+            set -ex
             export OPENSSL_NO_VENDOR=1
             export ZLIB_NO_VENDOR=1
             export LIBGIT2_SYS_USE_PKG_CONFIG=1
 
-cd "${PWD}"
-  # Print the current directory
-  echo "Current directory inside debian-env: $(pwd)"
-  ls - la
+            # Print environment variables
+            echo "PATH: $PATH"
+            which cargo
+            which rustc
+
+            # Copy the source code into the current directory
+            cp -r ${src}/* .
+
+            # Print the current directory
+          #  echo "Current directory inside debian-env: $(pwd)"
+            ls -la
 
             # Build the uv binary
             cargo build --release
