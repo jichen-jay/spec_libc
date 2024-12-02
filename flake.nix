@@ -65,29 +65,33 @@
         nativeBuildInputs = [
           debianEnv
         ];
-
+         
         buildPhase = ''
           # Start the FHS environment
           ${debianEnv}/bin/debian-env -c '
-            set -ex
+            set -x
             export OPENSSL_NO_VENDOR=1
             export ZLIB_NO_VENDOR=1
             export LIBGIT2_SYS_USE_PKG_CONFIG=1
 
-            # Print environment variables
-            echo "PATH: $PATH"
-            which cargo
-            which rustc
-
             # Copy the source code into the current directory
             cp -r ${src}/* .
 
-            # Print the current directory
-          #  echo "Current directory inside debian-env: $(pwd)"
+            # Print the current directory and contents
+            echo "Current directory inside debian-env: $(pwd)"
             ls -la
 
-            # Build the uv binary
-            cargo build --release
+            # Build the uv binary and capture output
+            cargo build --release 2>&1 | tee build.log
+            buildStatus=$?
+
+            # If build failed, output error log and exit
+            if [ $buildStatus -ne 0 ]; then
+              echo "Cargo build failed with exit code $buildStatus"
+              echo "Build log:"
+              cat build.log
+              exit $buildStatus
+            fi
           '
         '';
 
