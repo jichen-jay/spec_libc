@@ -81,13 +81,16 @@ buildPhase = ''
     echo "Current directory inside debian-env: $(pwd)"
     ls -la
 
-    # Build the uv binary and ensure output is captured
-    # Use unbuffer to force line buffering
-    unbuffer cargo build --release
+# Use script to capture all output
+script - e - c "cargo build --release" build.log
+
 
     # Check if the build was successful
     if [ ! -f target/release/uv ]; then
-      echo "Cargo build failed to produce target/release/uv"
+echo "Cargo build failed. Build log:"
+  cat
+  build.log
+
       exit 1
     fi
   '
