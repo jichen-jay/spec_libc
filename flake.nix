@@ -69,39 +69,45 @@
         sha256 = "sha256-E0U6K+lvtIM9htpMpFN36JHA772LgTHaTCVGiTTlvQk=";
       };
 
-      uvBuilder = pkgs.stdenv.mkDerivation {
-        pname = "uv";
-        version = uvVersion;
-        inherit src;
+uvBuilder = pkgs.stdenv.mkDerivation {
+  pname = "uv";
+  version = uvVersion;
+  inherit src;
 
-        nativeBuildInputs = [
-          debianEnv
-          pkgs.cargo
-          pkgs.rustc
-        ];
+  nativeBuildInputs = [
+    debianEnv
+    pkgs.cargo
+    pkgs.rustc
+  ];
 
-        buildCommand = ''
-          export out="$out"
-          export src="$src"
+  buildCommand = ''
+    # Export $out and $src so they are available inside debian-env
+    export out="$out"
+    export src="$src"
 
-          mkdir source
-          cd source
-          tar xvf "$src" --strip-components=1
+    # Start the FHS environment
+    ${debianEnv}/bin/debian-env -c '
+      set -e
+      export OPENSSL_NO_VENDOR=1
+      export ZLIB_NO_VENDOR=1
+      export LIBGIT2_SYS_USE_PKG_CONFIG=1
 
-          ${debianEnv}/bin/debian-env -c '
-            set -e
-            export OPENSSL_NO_VENDOR=1
-            export ZLIB_NO_VENDOR=1
-            export LIBGIT2_SYS_USE_PKG_CONFIG=1
+      # Change to the working directory
+      cd "$PWD"
 
-            cargo build --release
+      # Unpack the source tarball
+      tar xvf "$src" --strip-components=1
 
-            mkdir -p "$out"/usr/local/bin
-            cp target/release/uv "$out"/usr/local/bin/
-          '
-''; 
+      # Build the uv binary
+      cargo build --release
 
-      };
+      # Install the uv binary
+      mkdir -p "$out"/usr/local/bin
+      cp target/release/uv "$out"/usr/local/bin/
+    '
+  '';
+};
+
 
       uvImage = pkgs.dockerTools.buildImage {
         name = "uv";
