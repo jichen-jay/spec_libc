@@ -81,27 +81,19 @@ uvBuilder = pkgs.stdenv.mkDerivation {
   ];
 
   buildCommand = ''
-    # Export $out and $src so they are available inside debian-env
     export out="$out"
     export src="$src"
 
-    # Start the FHS environment
     ${debianEnv}/bin/debian-env -c '
       set -e
       export OPENSSL_NO_VENDOR=1
       export ZLIB_NO_VENDOR=1
       export LIBGIT2_SYS_USE_PKG_CONFIG=1
 
-      # Change to the working directory
-      cd "$PWD"
+      cp -r "$src"/. .
 
-      # Unpack the source tarball
-      tar xvf "$src" --strip-components=1
-
-      # Build the uv binary
       cargo build --release
 
-      # Install the uv binary
       mkdir -p "$out"/usr/local/bin
       cp target/release/uv "$out"/usr/local/bin/
     '
