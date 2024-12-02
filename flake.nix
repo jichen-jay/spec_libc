@@ -66,34 +66,33 @@
           debianEnv
         ];
          
-        buildPhase = ''
-          # Start the FHS environment
-          ${debianEnv}/bin/debian-env -c '
-            set -x
-            export OPENSSL_NO_VENDOR=1
-            export ZLIB_NO_VENDOR=1
-            export LIBGIT2_SYS_USE_PKG_CONFIG=1
+buildPhase = ''
+  # Start the FHS environment
+  ${debianEnv}/bin/debian-env -c '
+    set -x
+    export OPENSSL_NO_VENDOR=1
+    export ZLIB_NO_VENDOR=1
+    export LIBGIT2_SYS_USE_PKG_CONFIG=1
 
-            # Copy the source code into the current directory
-            cp -r ${src}/* .
+    # Copy the source code into the current directory
+    cp -r ${src}/* .
 
-            # Print the current directory and contents
-            echo "Current directory inside debian-env: $(pwd)"
-            ls -la
+    # Print the current directory and contents
+    echo "Current directory inside debian-env: $(pwd)"
+    ls -la
 
-            # Build the uv binary and capture output
-            cargo build --release 2>&1 | tee build.log
-            buildStatus=$?
+    # Build the uv binary and ensure output is captured
+    # Use unbuffer to force line buffering
+    unbuffer cargo build --release
 
-            # If build failed, output error log and exit
-            if [ $buildStatus -ne 0 ]; then
-              echo "Cargo build failed with exit code $buildStatus"
-              echo "Build log:"
-              cat build.log
-              exit $buildStatus
-            fi
-          '
-        '';
+    # Check if the build was successful
+    if [ ! -f target/release/uv ]; then
+      echo "Cargo build failed to produce target/release/uv"
+      exit 1
+    fi
+  '
+'';
+
 
         installPhase = ''
           # Copy the built binary to $out
