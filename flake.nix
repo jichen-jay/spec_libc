@@ -46,8 +46,7 @@
               profile = ''
                 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
               '';
-              runScript = ''
-
+runScript = ''
 
                 exec bash
 '';
@@ -83,6 +82,8 @@ uvBuilder = pkgs.stdenv.mkDerivation {
   buildCommand = ''
     export out="$out"
     export src="$src"
+echo "Outside debian-env: $PWD"
+
 
     ${debianEnv}/bin/debian-env -c '
       set -e
