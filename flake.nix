@@ -13,8 +13,10 @@ let
 in
 
 pkgs.rustPlatform.buildRustPackage rec {
-inherit pname pv src;
+inherit pname pv ;
 
+
+src = src;
 
 
   cargoHash = "sha256-WbA0/HojU/E2ccAvV2sv9EAXLqcb+99LFHxddcYFZFw=";
