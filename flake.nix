@@ -52,7 +52,8 @@
         '';
 
         runScript = ''
-          exec bash
+bash
+
         '';
       };
 
