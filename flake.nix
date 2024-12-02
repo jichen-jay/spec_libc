@@ -1,141 +1,78 @@
-{
-  description = "Docker image with dynamically linked uv binary using Nix and Debian glibc";
+{ pkgs ? import <nixpkgs> { }, lib ? pkgs.lib }:
 
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+let
+  pv = "0.5.5";
+  pname = "uv";
+
+  src = pkgs.fetchFromGitHub {
+    owner = "astral-sh";
+    repo = "uv";
+    rev = "${pv}";
+    sha256 = "sha256-E0U6K+lvtIM9htpMpFN36JHA772LgTHaTCVGiTTlvQk=";
   };
+in
 
-  outputs = { self, nixpkgs }:
-    let
-      system = "x86_64-linux";
+pkgs.rustPlatform.buildRustPackage rec {
+  inherit pname version;
+  version = pv;
 
-      pkgs = import nixpkgs {
-        inherit system;
-      };
+  src = src;
 
-      uvVersion = "0.5.5";
+  cargoHash = "sha256-WbA0/HojU/E2ccAvV2sv9EAXLqcb+99LFHxddcYFZFw=";
 
-      src = pkgs.fetchFromGitHub {
-        owner = "astral-sh";
-        repo = "uv";
-        rev = uvVersion;
-        sha256 = "sha256-E0U6K+lvtIM9htpMpFN36JHA772LgTHaTCVGiTTlvQk=";
-      };
+  nativeBuildInputs = with pkgs; [
+    cmake
+    pkg-config
+    openssl.dev
+    zlib.dev
+    libgit2.dev
+    python3
+  ];
 
-      # Define the Debian FHS environment with necessary packages
-      debianEnv = pkgs.buildFHSUserEnv {
-        name = "debian-env";
+  buildInputs = with pkgs; [
+    openssl
+    zlib
+    libgit2
+  ];
 
-        targetPkgs = pkgs: (with pkgs; [
-          gcc
-          glibc
-          openssl
-          zlib
-          libgit2
-          pkg-config
-          python3
-          gnumake
-          bash
-          coreutils
-          binutils
-          findutils
-          curl
-          wget
-          xz
-          which
-          rustc
-          cargo
-        ]);
+  # Environment variables to use system libraries
+  OPENSSL_NO_VENDOR = "1";
+  ZLIB_NO_VENDOR = "1";
+  LIBGIT2_SYS_USE_PKG_CONFIG = "1";
 
-        profile = ''
-          export PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH
-        '';
+  cargoBuildFlags = [
+    "--release"
+  ];
 
-        runScript = ''
-          bash
-        '';
-      };
+  installFlags = [
+    "--path"
+    "."
+  ];
 
-      # Define the uvBuilder derivation
-      uvBuilder = pkgs.stdenv.mkDerivation {
-        pname = "uv";
-        version = uvVersion;
-        inherit src;
+  buildPhase = ''
+    export RUST_BACKTRACE=1
+    export OPENSSL_NO_VENDOR=${OPENSSL_NO_VENDOR}
+    export ZLIB_NO_VENDOR=${ZLIB_NO_VENDOR}
+    export LIBGIT2_SYS_USE_PKG_CONFIG=${LIBGIT2_SYS_USE_PKG_CONFIG}
 
-        nativeBuildInputs = [
-          debianEnv
-        ];
-         
-buildPhase = ''
-  # Start the FHS environment
-  ${debianEnv}/bin/debian-env -c '
-    set -x
-    export OPENSSL_NO_VENDOR=1
-    export ZLIB_NO_VENDOR=1
-    export LIBGIT2_SYS_USE_PKG_CONFIG=1
+    cargo build --release --verbose
 
-    # Copy the source code into the current directory
-    cp -r ${src}/* .
-
-    # Print the current directory and contents
-    echo "Current directory inside debian-env: $(pwd)"
-    ls -la
-
-# Use script to capture all output
-script - e - c "cargo build --release" build.log
-
-
-    # Check if the build was successful
     if [ ! -f target/release/uv ]; then
-echo "Cargo build failed. Build log:"
-  cat
-  build.log
-
+      echo "Cargo build failed."
       exit 1
     fi
-  '
-'';
+  '';
 
+  installPhase = ''
+    mkdir -p $out/bin
+    cp target/release/uv $out/bin/
+  '';
 
-        installPhase = ''
-          # Copy the built binary to $out
-          mkdir -p "$out"/usr/local/bin
-          cp target/release/uv "$out"/usr/local/bin/
-        '';
-      };
-
-      # Build the Docker image
-      uvImage = pkgs.dockerTools.buildImage {
-        name = "uv";
-        tag = uvVersion;
-
-        fromImage = "debian:bookworm-slim";
-
-        config = {
-          Entrypoint = [ "/usr/local/bin/uv" ];
-          Cmd = [ ];
-          WorkingDir = "/";
-        };
-
-        runAsRoot = ''
-          apt-get update
-          apt-get install -y libssl3 libgit2-1.3 zlib1g
-          rm -rf /var/lib/apt/lists/*
-        '';
-
-        copyToRoot = pkgs.buildEnv {
-          name = "image-root";
-          paths = [ uvBuilder ];
-          pathsToLink = [ "/usr/local/bin" ];
-        };
-      };
-    in
-    {
-      # Export the image as the default package
-      packages.${system} = {
-        default = uvImage;
-      };
-
-      defaultPackage.${system} = uvImage;
-    };
+  meta = with pkgs.lib; {
+    description = "Extremely fast Python package installer and resolver, written in Rust";
+    homepage = "https://github.com/astral-sh/uv";
+    license = licenses.asl20; # Adjust according to the project's license
+    maintainers = [ maintainers.GaetanLepage ]; # Include appropriate maintainers
+    platforms = platforms.linux;
+  };
 }
