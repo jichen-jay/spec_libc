@@ -11,53 +11,7 @@
 
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [
-          (final: prev: {
-            debianPkgs = prev.pkgs.buildFHSUserEnv {
-              name = "debian-env";
-
-              targetPkgs = pkgs: (with pkgs; [
-                gcc
-                glibc
-                glibc.dev
-                glibc.static
-                openssl
-                openssl.dev
-                zlib
-                zlib.dev
-                libgit2
-                libgit2.dev
-                pkg-config
-                python3
-                gnumake
-                bash
-                coreutils
-                binutils
-                findutils
-                curl
-                wget
-                xz
-                which
-                rustc
-                cargo
-              ]);
-
-              multiPkgs = null;
-              profile = ''
-                export PATH=/usr/bin:/bin:/usr/sbin:/sbin
-              '';
-runScript = ''
-
-                exec bash
-'';
-
-
-            };
-          })
-        ];
       };
-
-      debianEnv = pkgs.debianPkgs;
 
       uvVersion = "0.5.5";
 
@@ -68,40 +22,74 @@ runScript = ''
         sha256 = "sha256-E0U6K+lvtIM9htpMpFN36JHA772LgTHaTCVGiTTlvQk=";
       };
 
-uvBuilder = pkgs.stdenv.mkDerivation {
-  pname = "uv";
-  version = uvVersion;
-  inherit src;
+      # Define the Debian FHS environment with necessary packages
+      debianEnv = pkgs.buildFHSUserEnv {
+        name = "debian-env";
 
-  nativeBuildInputs = [
-    debianEnv
-    pkgs.cargo
-    pkgs.rustc
-  ];
+        targetPkgs = pkgs: (with pkgs; [
+          gcc
+          glibc
+          openssl
+          zlib
+          libgit2
+          pkg-config
+          python3
+          gnumake
+          bash
+          coreutils
+          binutils
+          findutils
+          curl
+          wget
+          xz
+          which
+          rustc
+          cargo
+        ]);
 
-  buildCommand = ''
-    export out="$out"
-    export src="$src"
-echo "Outside debian-env: $PWD"
+        profile = ''
+          export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+        '';
 
+        runScript = ''
+          exec bash
+        '';
+      };
 
-    ${debianEnv}/bin/debian-env -c '
-      set -e
-      export OPENSSL_NO_VENDOR=1
-      export ZLIB_NO_VENDOR=1
-      export LIBGIT2_SYS_USE_PKG_CONFIG=1
+      # Define the uvBuilder derivation
+      uvBuilder = pkgs.stdenv.mkDerivation {
+        pname = "uv";
+        version = uvVersion;
+        inherit src;
 
-      cp -r "$src"/. .
+        nativeBuildInputs = [
+          debianEnv
+        ];
 
-      cargo build --release
+        # Use the default unpackPhase
+        # Nix will automatically unpack $src
 
-      mkdir -p "$out"/usr/local/bin
-      cp target/release/uv "$out"/usr/local/bin/
-    '
-  '';
-};
+        buildPhase = ''
+          # Start the FHS environment
+          ${debianEnv}/bin/debian-env -c '
+            set -e
+            export OPENSSL_NO_VENDOR=1
+            export ZLIB_NO_VENDOR=1
+            export LIBGIT2_SYS_USE_PKG_CONFIG=1
 
+            # Build the uv binary
+            cargo build --release
+          '
+        '';
 
+        installPhase = ''
+          # Copy the built binary to $out
+          mkdir -p "$out"/usr/local/bin
+          cp target/release/uv "$out"/usr/local/bin/
+        '';
+      };
+
+      # Build the Docker image
       uvImage = pkgs.dockerTools.buildImage {
         name = "uv";
         tag = uvVersion;
@@ -128,6 +116,7 @@ echo "Outside debian-env: $PWD"
       };
     in
     {
+      # Export the image as the default package
       packages.${system} = {
         default = uvImage;
       };
