@@ -8,17 +8,20 @@ let
     owner = "astral-sh";
     repo = "uv";
     rev = "${pv}";
-    sha256 = "E0U6K+lvtIM9htpMpFN36JHA772LgTHaTCVGiTTlvQk=";
+sha256 = "E0U6K+lvtIM9htpMpFN36JHA772LgTHaTCVGiTTlvQk="; # Update if prompted during build
+
   };
 in
 
 pkgs.rustPlatform.buildRustPackage rec {
-  inherit pname version;
+inherit pname;
+
   version = pv;
 
   src = src;
 
-  cargoSha256 = "WbA0/HojU/E2ccAvV2sv9EAXLqcb+99LFHxddcYFZFw=";
+cargoSha256 = "WbA0/HojU/E2ccAvV2sv9EAXLqcb+99LFHxddcYFZFw="; # Update if prompted during build
+
 
   nativeBuildInputs = with pkgs; [
     cmake
@@ -66,8 +69,9 @@ pkgs.rustPlatform.buildRustPackage rec {
   meta = with pkgs.lib; {
     description = "Extremely fast Python package installer and resolver, written in Rust";
     homepage = "https://github.com/astral-sh/uv";
-    license = licenses.asl20;
-    maintainers = with maintainers; [ GaetanLepage ];
+license = licenses.asl20; # Adjust according to the project's license
+maintainers = with maintainers; [ GaetanLepage ]; # Ensure maintainers are correctly referenced
+
     platforms = platforms.linux;
   };
 }
